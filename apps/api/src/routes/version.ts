@@ -5,7 +5,7 @@ export const versionRoutes: FastifyPluginAsync = async fastify => {
     return reply.status(200).send({
       name: 'AlgoReflex API',
       version: '0.1.0',
-      milestone: 'M0',
+      milestone: 'M1',
       status: 'operational',
       environment: process.env['NODE_ENV'] || 'development',
     });

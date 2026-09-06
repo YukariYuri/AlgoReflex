@@ -113,7 +113,53 @@ Returns current API version, active milestone, and environment.
 
 ---
 
-## 5. Milestone M1+ Planned Endpoints
+## 5. Milestone M1 Playground Endpoint
+
+### `POST /api/playground/run`
+
+Runs an ad-hoc C++ program through the isolated runner service. The API validates
+the request and forwards it over an authenticated internal boundary; it never
+imports Docker orchestration or starts user code.
+
+**Request**:
+
+```json
+{
+  "sourceCode": "#include <iostream>\nint main() { std::cout << \"Hello\\n\"; }",
+  "toolchainProfile": "GNU_CPP20",
+  "stdin": ""
+}
+```
+
+- `sourceCode`: required, at most 128 KiB of UTF-8 data.
+- `stdin`: required (possibly empty), at most 64 KiB of UTF-8 data.
+- `toolchainProfile`: one of the centralized allowlisted profile identifiers.
+- Unknown fields are rejected. The API does not accept compiler flags, commands,
+  custom images, executables, or resource limits.
+
+**Success response (200)**:
+
+```json
+{
+  "status": "ACCEPTED",
+  "stdout": "Hello\n",
+  "stderr": "",
+  "executionTimeMs": 4,
+  "exitCode": 0
+}
+```
+
+`status` is one of `ACCEPTED`, `COMPILE_ERROR`, `RUNTIME_ERROR`,
+`TIME_LIMIT_EXCEEDED`, `MEMORY_LIMIT_EXCEEDED`, `OUTPUT_LIMIT_EXCEEDED`,
+`RUNNER_UNAVAILABLE`, or `INTERNAL_ERROR`. Results deliberately omit runner
+commands, container IDs, internal IPs, mount paths, and host details.
+
+The development API applies an in-memory limit of 20 playground requests per IP
+per minute. It is deliberately documented as non-authoritative for multi-node
+production deployments; a distributed limiter belongs in production deployment
+configuration.
+
+## 6. Milestone M2+ Planned Endpoints
 
 - `POST /api/submissions` — Queue a C++ code submission (`language`: `CPP17` | `CPP20` | `CPP23`, `toolchainProfile`: `GNU_CPP20`, etc.).
 - `GET /api/submissions/:id` — Polling / status of execution (returns `PublicSubmissionResult`).
