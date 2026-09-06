@@ -88,6 +88,19 @@ describe('DockerSandboxRunner', () => {
     expect(command.mock.calls.flatMap(([, args]) => args).join(' ')).not.toContain(
       'docker.sock'
     );
+    const volumeCall = command.mock.calls.find(
+      ([, args]) => args[0] === 'volume' && args[1] === 'create'
+    );
+    expect(volumeCall?.[1]).toEqual(
+      expect.arrayContaining([
+        '--opt',
+        'type=tmpfs',
+        '--opt',
+        'device=tmpfs',
+        '--opt',
+        'o=uid=10001,gid=10001,mode=0755,size=33554432,nosuid,nodev',
+      ])
+    );
   });
 
   it('maps an execution output flood to OUTPUT_LIMIT_EXCEEDED and tears down resources', async () => {

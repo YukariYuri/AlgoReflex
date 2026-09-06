@@ -129,7 +129,8 @@ Docker APIs or launch user processes.
 For every run, the runner:
 
 1. Verifies it is running on Linux and that a rootless Docker daemon is available.
-2. Creates a fresh named Docker volume for the compiled artifact.
+2. Creates a fresh tmpfs-backed Docker volume for the compiled artifact, owned
+   by the sandbox UID/GID (10001) so compilation needs no privileged setup step.
 3. Starts an ephemeral **compile** container from the approved runner image.
 4. Streams source only to the compile container's standard input; it is written
    inside a bounded `/sandbox/source` tmpfs. The fixed, allowlisted compiler
@@ -152,7 +153,7 @@ an explicit argument array.
 - Non-root workload: `--user 10001:10001`.
 - Immutable base: `--read-only`; the approved image contains toolchains and
   runtime libraries and is never assembled from host bind mounts.
-- No host mounts: the runner uses a new Docker volume plus tmpfs mounts only;
+- No host mounts: the runner uses a new tmpfs-backed Docker volume plus tmpfs mounts only;
   it never maps `/etc`, application files, credentials, home directories, or a
   Docker socket into a sandbox.
 - Narrow writable areas: compile-only `/sandbox/source` tmpfs and `/tmp` tmpfs

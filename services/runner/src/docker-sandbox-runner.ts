@@ -88,7 +88,19 @@ export class DockerSandboxRunner implements CodeRunner {
 
     const volumeResult = await this.command(
       this.config.dockerBinary,
-      ['volume', 'create', volume],
+      [
+        'volume',
+        'create',
+        '--driver',
+        'local',
+        '--opt',
+        'type=tmpfs',
+        '--opt',
+        'device=tmpfs',
+        '--opt',
+        'o=uid=10001,gid=10001,mode=0755,size=33554432,nosuid,nodev',
+        volume,
+      ],
       '',
       4096,
       5_000
