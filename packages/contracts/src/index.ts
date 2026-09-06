@@ -1,4 +1,5 @@
 export * from './language.js';
+export * from './playground.js';
 export * from './submission.js';
 export * from './mistakes.js';
 export * from './mastery.js';

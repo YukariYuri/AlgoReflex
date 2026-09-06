@@ -1,66 +1,70 @@
 import type {
-  SubmissionStatus,
-  JudgeTestCaseResult,
+  PlaygroundRunRequest,
+  PlaygroundRunResult,
   ToolchainProfile,
 } from '@algoreflex/contracts';
 
-/**
- * Resource limits enforced during the compilation phase.
- * Compiler toolchains (e.g. g++ invoking cc1plus, as, ld) require multiple processes.
- */
+/** Resource limits enforced only by the trusted runner service. */
 export interface CompileLimits {
-  timeLimitMs: number; // e.g. 10000ms
-  memoryLimitMb: number; // e.g. 1024MB
-  outputLimitKb: number; // e.g. 128KB compiler diagnostics
-  maxProcesses: number; // e.g. 16 (permits compiler sub-processes)
-  maxSourceSizeKb: number; // e.g. 128KB
+  timeLimitMs: number;
+  wallTimeLimitMs: number;
+  memoryLimitMb: number;
+  outputLimitKb: number;
+  maxProcesses: number;
+  maxSourceSizeKb: number;
 }
 
-/**
- * Resource limits enforced during runtime execution of user code.
- * Strictly constrained to prevent fork bombs and resource exhaustion.
- */
+/** Resource limits enforced only by the trusted runner service. */
 export interface ExecutionLimits {
-  timeLimitMs: number; // e.g. 1000ms CPU time
-  wallTimeLimitMs: number; // e.g. 2000ms wall-clock time
-  memoryLimitMb: number; // e.g. 256MB
-  outputLimitKb: number; // e.g. 64KB stdout/stderr
-  maxProcesses: number; // Strictly 1 (no subprocess spawning permitted)
+  timeLimitMs: number;
+  wallTimeLimitMs: number;
+  memoryLimitMb: number;
+  outputLimitKb: number;
+  maxProcesses: 1;
 }
 
-export interface RunnerTestCase {
-  id: string;
-  orderIndex: number;
-  input: string;
-  expectedOutput: string;
-  isSample: boolean;
+export interface RunnerLimits {
+  compile: CompileLimits;
+  execution: ExecutionLimits;
 }
 
-/**
- * Request contract for judge code execution.
- *
- * NOTE: User-controlled arbitrary compiler flags are strictly prohibited.
- * Only trusted, allowlisted toolchainProfile identifiers may be provided.
- */
-export interface ExecutionRequest {
-  submissionId: string;
-  sourceCode: string;
-  toolchainProfile: ToolchainProfile;
-  compileLimits: CompileLimits;
-  executionLimits: ExecutionLimits;
-  testCases: RunnerTestCase[];
-}
+export const DEFAULT_RUNNER_LIMITS: RunnerLimits = {
+  compile: {
+    timeLimitMs: 10_000,
+    wallTimeLimitMs: 15_000,
+    memoryLimitMb: 1024,
+    outputLimitKb: 128,
+    maxProcesses: 16,
+    maxSourceSizeKb: 128,
+  },
+  execution: {
+    timeLimitMs: 1_000,
+    wallTimeLimitMs: 2_000,
+    memoryLimitMb: 256,
+    outputLimitKb: 64,
+    maxProcesses: 1,
+  },
+};
 
-export interface ExecutionResponse {
-  submissionId: string;
-  status: SubmissionStatus;
-  compileOutput?: string;
-  testCaseResults: JudgeTestCaseResult[];
-  error?: string;
-  executionTimeMs?: number;
-  memoryUsedKb?: number;
-}
-
+/** The only runner API exposed to the application API. */
 export interface CodeRunner {
-  execute(request: ExecutionRequest): Promise<ExecutionResponse>;
+  run(request: PlaygroundRunRequest): Promise<PlaygroundRunResult>;
 }
+
+export interface SandboxRunnerConfig {
+  dockerBinary: string;
+  image: string;
+  requireRootlessDocker: boolean;
+  limits: RunnerLimits;
+}
+
+export const DEFAULT_SANDBOX_RUNNER_CONFIG: SandboxRunnerConfig = {
+  dockerBinary: 'docker',
+  // Development may use a locally built tag. Deployments must configure a
+  // digest-pinned RUNNER_IMAGE from the approved release registry.
+  image: process.env['RUNNER_IMAGE'] ?? 'algoreflex-cpp-runner:1.0.0',
+  requireRootlessDocker: true,
+  limits: DEFAULT_RUNNER_LIMITS,
+};
+
+export type TrustedToolchainProfile = ToolchainProfile;

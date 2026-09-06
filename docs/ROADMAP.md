@@ -11,9 +11,9 @@ M4: Training Engine ──► M5: Adaptive Learning ──► M6: Competitive Pr
 
 ---
 
-### M0: Foundation (Current Milestone)
+### M0: Foundation
 
-- **Status**: In Review
+- **Status**: Complete
 - **Focus**: Monorepo bootstrap, shared contracts, architecture specifications, security invariants, agent collaboration rules, baseline CI.
 - **Deliverables**:
   - pnpm workspace with strict TypeScript configuration.
@@ -27,7 +27,7 @@ M4: Training Engine ──► M5: Adaptive Learning ──► M6: Competitive Pr
 
 ---
 
-### M1: C++ Playground & Secure Runner Sandbox
+### M1: C++ Playground & Secure Runner Sandbox (Current Milestone)
 
 - **Focus**: Isolated runner service and browser code editor.
 - **Deliverables**:

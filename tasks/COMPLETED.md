@@ -14,3 +14,10 @@
 - [x] **M0-BOOT-10**: Author complete architectural documentation (`PRODUCT.md`, `ARCHITECTURE.md`, `LEARNING_SYSTEM.md`, `CURRICULUM.md`, `CODE_RUNNER.md`, `SECURITY.md`, `DATABASE.md`, `API_CONTRACTS.md`, `DECISIONS.md`, `ROADMAP.md`).
 - [x] **M0-BOOT-11**: Establish agent collaboration rules and authority protocol in `AGENTS.md`.
 - [x] **M0-BOOT-12**: Configure GitHub Actions baseline CI pipeline (`.github/workflows/ci.yml`).
+
+## Milestone M0: Review and Merge
+
+- [x] **M0-REV-01**: Project Lead architectural review of `docs/*` and `AGENTS.md`.
+- [x] **M0-REV-02**: Verification of GitHub Actions CI on `foundation/m0-bootstrap`.
+- [x] **M0-REV-03**: Review of domain contracts in `@algoreflex/contracts` and `@algoreflex/learning-core`.
+- [x] **M0-REV-04**: Approval and merge of the M0 pull request into `main`.

@@ -13,6 +13,8 @@ import {
   JudgeSubmissionResultSchema,
   toPublicSubmissionResult,
   PrerequisiteSchema,
+  PlaygroundRunRequestSchema,
+  PLAYGROUND_LIMITS,
 } from '../src/index.js';
 
 describe('Contracts Schema Validation', () => {
@@ -51,6 +53,30 @@ describe('Contracts Schema Validation', () => {
     expect(ToolchainProfileSchema.parse('GNU_CPP20')).toBe('GNU_CPP20');
     expect(ToolchainProfileSchema.parse('CLANG_CPP23')).toBe('CLANG_CPP23');
     expect(() => ToolchainProfileSchema.parse('CUSTOM_GCC')).toThrow();
+  });
+
+  it('strictly validates bounded playground requests without arbitrary compiler flags', () => {
+    const valid = {
+      sourceCode: 'int main() { return 0; }',
+      stdin: '42\n',
+      toolchainProfile: 'GNU_CPP20',
+    };
+    expect(PlaygroundRunRequestSchema.parse(valid)).toEqual(valid);
+    expect(() =>
+      PlaygroundRunRequestSchema.parse({ ...valid, compilerFlags: ['-march=native'] })
+    ).toThrow();
+    expect(() =>
+      PlaygroundRunRequestSchema.parse({
+        ...valid,
+        sourceCode: 'x'.repeat(PLAYGROUND_LIMITS.maxSourceCodeBytes + 1),
+      })
+    ).toThrow();
+    expect(() =>
+      PlaygroundRunRequestSchema.parse({
+        ...valid,
+        stdin: '😀'.repeat(PLAYGROUND_LIMITS.maxStdinBytes),
+      })
+    ).toThrow();
   });
 
   it('validates hidden test diagnostic codes', () => {
