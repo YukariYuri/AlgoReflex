@@ -1,3 +1,5 @@
+import type { KnowledgeNodeRef } from '@algoreflex/contracts';
+
 export interface GraphNode<T = unknown> {
   id: string;
   metadata?: T;
@@ -12,7 +14,9 @@ export class CycleDetectedError extends Error {
 
 /**
  * Manages a Directed Acyclic Graph (DAG) of curriculum prerequisites.
- * Ensures the curriculum remains valid and determines available learning paths.
+ * Authoritative single source of truth for curriculum dependencies.
+ *
+ * Supports cross-type prerequisite relationships (e.g. CONCEPT -> TOOL, TOOL -> PATTERN).
  */
 export class PrerequisiteGraph<T = unknown> {
   private readonly nodes: Map<string, GraphNode<T>> = new Map();
@@ -20,6 +24,13 @@ export class PrerequisiteGraph<T = unknown> {
   private readonly dependents: Map<string, Set<string>> = new Map();
   // reverse adjacency: nodeId -> Set of prerequisite nodeIds
   private readonly prerequisites: Map<string, Set<string>> = new Map();
+
+  /**
+   * Helper to format a typed KnowledgeNodeRef into a canonical graph key.
+   */
+  public static toNodeKey(ref: KnowledgeNodeRef): string {
+    return `${ref.type}:${ref.id}`;
+  }
 
   public addNode(id: string, metadata?: T): void {
     if (!this.nodes.has(id)) {
@@ -49,6 +60,17 @@ export class PrerequisiteGraph<T = unknown> {
       prereqs?.delete(prereqId);
       throw new CycleDetectedError([prereqId, dependentId, prereqId]);
     }
+  }
+
+  /**
+   * Adds an edge between two typed KnowledgeNodeRefs.
+   * e.g. CONCEPT:monotonicity -> TOOL:lower_bound
+   */
+  public addTypedEdge(prereq: KnowledgeNodeRef, dependent: KnowledgeNodeRef): void {
+    this.addEdge(
+      PrerequisiteGraph.toNodeKey(prereq),
+      PrerequisiteGraph.toNodeKey(dependent)
+    );
   }
 
   public hasCycle(): boolean {

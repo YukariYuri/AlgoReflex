@@ -10,7 +10,53 @@ The AlgoReflex Application API (`apps/api`) follows modern RESTful conventions w
 
 ---
 
-## 2. Standard Error Envelope
+## 2. Public vs. Internal Judge Separation Invariant
+
+To guarantee that hidden test cases and solutions cannot leak to web clients:
+
+- **Public Endpoints** use strictly sanitized schemas (`PublicProblem`, `PublicSubmissionResult`).
+- **Judge / Internal Services** use authoritative schemas (`JudgeProblem`, `JudgeSubmissionResult`).
+
+### Public Submission Result Shape
+
+Hidden test failures only disclose aggregate verdict status:
+
+```json
+{
+  "status": "WRONG_ANSWER",
+  "totalTestCases": 20,
+  "passedTestCases": 14,
+  "maxExecutionTimeMs": 84,
+  "maxMemoryUsedKb": 4096,
+  "testCaseResults": [
+    {
+      "testCaseId": "sample-1",
+      "orderIndex": 0,
+      "isSample": true,
+      "status": "ACCEPTED",
+      "timeExecutionMs": 12,
+      "memoryExecutionKb": 2048,
+      "actualOutput": "42\n",
+      "expectedOutput": "42\n"
+    },
+    {
+      "testCaseId": "hidden-test-15",
+      "orderIndex": 15,
+      "isSample": false,
+      "status": "WRONG_ANSWER",
+      "timeExecutionMs": 84,
+      "memoryExecutionKb": 4096,
+      "errorMessage": "Wrong answer on test 15"
+    }
+  ]
+}
+```
+
+_Notice: `expectedOutput`, `actualOutput`, and raw `input` are strictly omitted for hidden test cases._
+
+---
+
+## 3. Standard Error Envelope
 
 All 4xx and 5xx responses conform to this shape:
 
@@ -32,7 +78,7 @@ All 4xx and 5xx responses conform to this shape:
 
 ---
 
-## 3. Milestone M0 Endpoints
+## 4. Milestone M0 Endpoints
 
 ### `GET /health`
 
@@ -67,10 +113,10 @@ Returns current API version, active milestone, and environment.
 
 ---
 
-## 4. Milestone M1+ Planned Endpoints
+## 5. Milestone M1+ Planned Endpoints
 
-- `POST /api/submissions` — Queue a C++ code submission for judging.
-- `GET /api/submissions/:id` — Polling / status of execution.
+- `POST /api/submissions` — Queue a C++ code submission (`language`: `CPP17` | `CPP20` | `CPP23`, `toolchainProfile`: `GNU_CPP20`, etc.).
+- `GET /api/submissions/:id` — Polling / status of execution (returns `PublicSubmissionResult`).
 - `GET /api/curriculum/nodes` — Retrieve curriculum prerequisite graph.
 - `GET /api/mastery` — Retrieve user multi-dimensional mastery matrix.
 - `POST /api/drills/start` — Initiate a targeted learning activity or fallback drill.

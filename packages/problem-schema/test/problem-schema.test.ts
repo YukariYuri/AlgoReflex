@@ -1,23 +1,40 @@
 import { describe, it, expect } from 'vitest';
-import { ProblemSchema, TestCaseSchema, ProblemConstraintSchema } from '../src/index.js';
+import {
+  PublicProblemSchema,
+  JudgeProblemSchema,
+  SampleTestCaseSchema,
+  HiddenTestCaseSchema,
+  ProblemConstraintSchema,
+  toPublicProblem,
+} from '../src/index.js';
 
-describe('Problem Schema Validation', () => {
-  it('validates a valid test case', () => {
-    const testCase = {
-      id: 'tc-1',
+describe('Problem Schema Validation & Confidentiality', () => {
+  it('validates sample and hidden test cases with strict discriminator', () => {
+    const sample = SampleTestCaseSchema.parse({
+      id: 'tc-sample-1',
       orderIndex: 0,
       input: '5\n1 2 3 4 5\n',
       expectedOutput: '15\n',
       isSample: true,
-      isHidden: false,
-    };
-    const parsed = TestCaseSchema.parse(testCase);
-    expect(parsed.id).toBe('tc-1');
-    expect(parsed.isSample).toBe(true);
+      explanation: 'Sum of 1 to 5',
+    });
+    expect(sample.isSample).toBe(true);
+
+    const hidden = HiddenTestCaseSchema.parse({
+      id: 'tc-hidden-1',
+      orderIndex: 1,
+      input: '100000\n...',
+      expectedOutput: '5000050000\n',
+      isSample: false,
+      isHidden: true,
+      weight: 2,
+    });
+    expect(hidden.isSample).toBe(false);
+    expect(hidden.isHidden).toBe(true);
   });
 
-  it('validates a complete problem entity', () => {
-    const problem = {
+  it('validates a client-safe PublicProblem entity', () => {
+    const publicProblem = {
       id: 'prob-prefix-sum-1',
       slug: 'range-sum-query',
       title: 'Range Sum Query',
@@ -39,29 +56,122 @@ describe('Problem Schema Validation', () => {
           orderIndex: 0,
           input: '5 1\n1 2 3 4 5\n1 3\n',
           expectedOutput: '6\n',
-          isSample: true,
-          isHidden: false,
+          isSample: true as const,
         },
       ],
       targetPatternIds: ['pattern-prefix-sum'],
-      targetToolIds: ['cpp-vector', 'cpp-partial-sum'],
+      targetToolIds: ['cpp-vector'],
+      author: 'AlgoReflex',
+    };
+
+    const parsed = PublicProblemSchema.parse(publicProblem);
+    expect(parsed.slug).toBe('range-sum-query');
+    expect(parsed.constraints.timeLimitMs).toBe(1000);
+  });
+
+  it('strictly rejects PublicProblem containing hiddenTestCases or solutions', () => {
+    const publicProblemWithLeaks = {
+      id: 'prob-prefix-sum-leak',
+      slug: 'leak-test',
+      title: 'Leak Test',
+      difficulty: 'MEDIUM',
+      statement: 'Statement',
+      inputFormat: 'Input',
+      outputFormat: 'Output',
+      constraints: {
+        timeLimitMs: 1000,
+        memoryLimitMb: 256,
+      },
+      sampleCases: [
+        {
+          id: 'sample-1',
+          orderIndex: 0,
+          input: '1\n',
+          expectedOutput: '1\n',
+          isSample: true as const,
+        },
+      ],
+      // SENSITIVE LEAKS:
+      hiddenTestCases: [
+        {
+          id: 'secret-tc',
+          orderIndex: 1,
+          input: '1000000\n',
+          expectedOutput: '42\n',
+          isSample: false,
+          isHidden: true,
+        },
+      ],
       solutions: [
         {
-          id: 'sol-prefix-sum',
-          name: 'Prefix Sum Array',
-          timeComplexity: 'O(N + Q)',
-          spaceComplexity: 'O(N)',
-          preferredToolIds: ['cpp-vector'],
-          cxxCode: '// C++ solution',
-          explanation: 'Precompute cumulative sums.',
+          id: 'sol-secret',
+          name: 'Author Solution',
+          timeComplexity: 'O(N)',
+          spaceComplexity: 'O(1)',
+          cxxCode: '#include <iostream>\n...',
+          explanation: 'Secret algorithm',
         },
       ],
     };
 
-    const parsed = ProblemSchema.parse(problem);
-    expect(parsed.slug).toBe('range-sum-query');
-    expect(parsed.constraints.timeLimitMs).toBe(1000);
-    expect(parsed.solutions.length).toBe(1);
+    // PublicProblemSchema.strict() MUST throw when sensitive judge-only fields are present
+    expect(() => PublicProblemSchema.parse(publicProblemWithLeaks)).toThrow();
+  });
+
+  it('validates JudgeProblem and correctly transforms it to PublicProblem', () => {
+    const judgeProblem = JudgeProblemSchema.parse({
+      id: 'prob-authoring-1',
+      slug: 'authoring-test',
+      title: 'Authoring Test',
+      difficulty: 'HARD',
+      statement: 'Problem statement text',
+      inputFormat: 'Input format text',
+      outputFormat: 'Output format text',
+      constraints: {
+        timeLimitMs: 2000,
+        memoryLimitMb: 512,
+      },
+      sampleCases: [
+        {
+          id: 'sample-1',
+          orderIndex: 0,
+          input: '10\n',
+          expectedOutput: '20\n',
+          isSample: true as const,
+        },
+      ],
+      hiddenTestCases: [
+        {
+          id: 'hidden-1',
+          orderIndex: 1,
+          input: '1000000\n',
+          expectedOutput: '2000000\n',
+          isSample: false as const,
+          isHidden: true as const,
+        },
+      ],
+      solutions: [
+        {
+          id: 'sol-1',
+          name: 'Optimal Solution',
+          timeComplexity: 'O(N log N)',
+          spaceComplexity: 'O(N)',
+          cxxCode: 'int main(){}',
+          explanation: 'Use binary search',
+        },
+      ],
+    });
+
+    expect(judgeProblem.hiddenTestCases.length).toBe(1);
+    expect(judgeProblem.solutions.length).toBe(1);
+
+    // Transform to client-safe public problem
+    const publicVersion = toPublicProblem(judgeProblem);
+    const parsed = PublicProblemSchema.parse(publicVersion);
+
+    expect(parsed.id).toBe('prob-authoring-1');
+    expect((parsed as Record<string, unknown>)['hiddenTestCases']).toBeUndefined();
+    expect((parsed as Record<string, unknown>)['solutions']).toBeUndefined();
   });
 
   it('rejects problem with empty sample cases', () => {
@@ -77,6 +187,6 @@ describe('Problem Schema Validation', () => {
       sampleCases: [], // Min 1 required
     };
 
-    expect(() => ProblemSchema.parse(invalidProblem)).toThrow();
+    expect(() => PublicProblemSchema.parse(invalidProblem)).toThrow();
   });
 });

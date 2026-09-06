@@ -1,12 +1,30 @@
 # AlgoReflex — Curriculum Taxonomy & Graph Specification
 
-## 1. Graph-Based Curriculum Model
+## 1. Single Authoritative Prerequisite Graph Model
 
-AlgoReflex models the curriculum as a **Directed Acyclic Graph (DAG)** rather than a rigid linear track. Each node represents a Concept, Tool, Pattern, or Module, connected by prerequisite edges:
+AlgoReflex models the curriculum as a **Directed Acyclic Graph (DAG)** of typed knowledge nodes rather than a rigid linear track.
 
-- **Strict Prerequisites**: Minimum mastery required before dependent nodes can be attempted.
-- **Dynamic Unlocking**: When a student demonstrates prerequisite mastery across relevant dimensions, downstream learning nodes unlock automatically.
-- **Remediation Paths**: If a student fails a downstream drill due to a fundamental gap, the graph traces back to the exact prerequisite node requiring reinforcement.
+### Single Source of Truth Invariant
+
+Prerequisite relationships exist exclusively as **directed edges** in the authoritative prerequisite graph (`PrerequisiteSchema` / `PrerequisiteGraph`).
+Individual curriculum entity schemas (e.g. `Concept`, `Tool`) **do not** maintain independent prerequisite lists. Any entity-local prerequisite views rendered in client interfaces are strictly **derived, cached, or generated** from the authoritative graph edges.
+
+Each edge connects two typed node references (`KnowledgeNodeRef`):
+
+```text
+KnowledgeNodeRef: { type: 'CONCEPT' | 'TOOL' | 'PATTERN' | 'LESSON' | 'MODULE', id: string }
+
+PrerequisiteEdge:
+  required: KnowledgeNodeRef
+  target: KnowledgeNodeRef
+  minMasteryScore: number
+```
+
+This enables heterogeneous cross-type dependency modeling:
+
+- `CONCEPT:monotonicity` ──► `TOOL:std::lower_bound`
+- `TOOL:std::lower_bound` ──► `PATTERN:binary-search-on-answer`
+- `PATTERN:binary-search-on-answer` ──► `LESSON:aggressive-cows`
 
 ---
 
@@ -95,6 +113,6 @@ Competitive Programming Invariants
 
 ## 3. Prerequisite Graph Invariant
 
-- Every module must declare clear incoming prerequisite IDs.
+- Every module must declare clear incoming prerequisite node references.
 - Graph validation routines in `@algoreflex/learning-core` guarantee no circular dependencies exist.
 - Progress across the curriculum is measured by multi-dimensional mastery rather than raw lesson completion.

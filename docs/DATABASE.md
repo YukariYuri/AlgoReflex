@@ -28,6 +28,9 @@ Courses
               ├── Tools (lesson_id / relations)
               └── Patterns (lesson_id / relations)
 
+Prerequisites (authoritative dependency edges)
+  └── PrerequisiteEdges (id, required_type, required_id, target_type, target_id, min_mastery_score)
+
 Problems
   ├── ProblemConstraints (time_limit, memory_limit, bounds)
   ├── TestCases (problem_id, input, output, is_sample, is_hidden)

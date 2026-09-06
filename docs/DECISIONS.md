@@ -9,6 +9,9 @@
 - [ADR-005: Isolated C++ Runner Boundary](#adr-005-isolated-c-runner-boundary)
 - [ADR-006: Zero AI Dependency for Core Learning Engine](#adr-006-zero-ai-dependency-for-core-learning-engine)
 - [ADR-007: Shared Zod Schema Contracts](#adr-007-shared-zod-schema-contracts)
+- [ADR-008: Separation of Public and Judge Contracts by Construction](#adr-008-separation-of-public-and-judge-contracts-by-construction)
+- [ADR-009: Decoupled Compilation and Execution Sandbox Profiles](#adr-009-decoupled-compilation-and-execution-sandbox-profiles)
+- [ADR-010: Centralized C++ Language Standards and Trusted Toolchain Profiles](#adr-010-centralized-c-language-standards-and-trusted-toolchain-profiles)
 
 ---
 
@@ -19,7 +22,7 @@
 - **Decision**: Adopt a monorepo structure managed by `pnpm` workspaces.
 - **Consequences**:
   - Single repository clone for all agents.
-  - atomic commits and refactorings across contracts, API, and frontend.
+  - Atomic commits and refactorings across contracts, API, and frontend.
   - Strict dependency boundaries without premature microservice repository fragmentation.
 
 ---
@@ -90,3 +93,36 @@
 - **Consequences**:
   - End-to-end type safety between API and frontend.
   - Single location for domain taxonomy (statuses, mistake categories, mastery dimensions).
+
+---
+
+### ADR-008: Separation of Public and Judge Contracts by Construction
+
+- **Status**: Approved
+- **Context**: Leaking hidden test inputs, outputs, or reference solutions to clients destroys competition integrity and violates security invariants. Relying on developers to remember to strip fields at runtime is brittle.
+- **Decision**: Split schemas into `PublicProblem` / `PublicSubmissionResult` (strictly omitting hidden fields by schema design) and `JudgeProblem` / `JudgeSubmissionResult` (server/internal only).
+- **Consequences**:
+  - Accidental leakage of hidden test cases or solution code is prevented at the compile-time type and schema parser boundaries.
+  - Client web application can never receive hidden outputs.
+
+---
+
+### ADR-009: Decoupled Compilation and Execution Sandbox Profiles
+
+- **Status**: Approved
+- **Context**: C++ compilers spawn multiple sub-processes (`cc1plus`, `as`, `ld`), whereas user binaries must be strictly restricted to a single process (`PID: 1`) to block fork bombs.
+- **Decision**: Model compilation and execution as two distinct sandboxes with separate resource bounds (`CompileLimits` vs `ExecutionLimits`).
+- **Consequences**:
+  - Compilation succeeds with multi-process headroom (PID limit: 16) and larger memory limits.
+  - Execution runs under maximum containment with PID limit 1, no network, and ephemeral mounts.
+
+---
+
+### ADR-010: Centralized C++ Language Standards and Trusted Toolchain Profiles
+
+- **Status**: Approved
+- **Context**: Allowing arbitrary compiler/linker flags from user clients opens security injection vulnerabilities. In addition, language standards were inconsistently represented across packages.
+- **Decision**: Centralize language standards (`CPP17`, `CPP20`, `CPP23`) and map trusted execution requests strictly through `toolchainProfile` identifiers (`GNU_CPP20`, `CLANG_CPP20`) with hardcoded flags. Arbitrary compiler flags are completely removed from request schemas.
+- **Consequences**:
+  - Immunity to compiler flag injection attacks.
+  - Unified vocabulary across runner, submission contracts, and curriculum.

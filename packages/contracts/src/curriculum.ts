@@ -1,10 +1,37 @@
 import { z } from 'zod';
+import { CppStandardSchema } from './language.js';
 
+// ============================================================================
+// Prerequisite Relationship Modeling
+// Authoritative single source of truth for curriculum dependencies.
+// ============================================================================
+
+export const KnowledgeNodeTypeSchema = z.enum([
+  'CONCEPT',
+  'TOOL',
+  'PATTERN',
+  'LESSON',
+  'MODULE',
+]);
+
+export type KnowledgeNodeType = z.infer<typeof KnowledgeNodeTypeSchema>;
+
+export const KnowledgeNodeRefSchema = z.object({
+  type: KnowledgeNodeTypeSchema,
+  id: z.string(),
+});
+
+export type KnowledgeNodeRef = z.infer<typeof KnowledgeNodeRefSchema>;
+
+/**
+ * Authoritative prerequisite relationship.
+ * Supports cross-type relationships (e.g. CONCEPT -> TOOL, TOOL -> PATTERN, LESSON -> PATTERN).
+ * Entity-local prerequisite views are strictly derived from these edges.
+ */
 export const PrerequisiteSchema = z.object({
   id: z.string(),
-  requiredEntityId: z.string(),
-  targetEntityId: z.string(),
-  entityType: z.enum(['CONCEPT', 'TOOL', 'PATTERN', 'LESSON']),
+  required: KnowledgeNodeRefSchema,
+  target: KnowledgeNodeRefSchema,
   minMasteryScore: z.number().min(0).max(100).default(70),
 });
 
@@ -14,7 +41,7 @@ export const ToolVariantSchema = z.object({
   id: z.string(),
   name: z.string(),
   signature: z.string(),
-  standard: z.enum(['C++11', 'C++14', 'C++17', 'C++20', 'C++23']),
+  standard: CppStandardSchema,
   description: z.string(),
   timeComplexity: z.string(),
   spaceComplexity: z.string(),
@@ -59,8 +86,9 @@ export const ConceptSchema = z.object({
   summary: z.string(),
   area: z.string(),
   difficulty: z.enum(['BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'NATIONAL']),
-  prerequisites: z.array(z.string()).default([]),
   relatedToolIds: z.array(z.string()).default([]),
+  // NOTE: Prerequisites are NOT maintained here. The PrerequisiteGraph edges
+  // in @algoreflex/learning-core are the single authoritative source of truth.
 });
 
 export type Concept = z.infer<typeof ConceptSchema>;
