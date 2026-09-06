@@ -12,7 +12,7 @@ Problem ──► Plan ──► Pattern ──► Tool ──► Code ──►
 2. **Plan**: Analyzing constraints (bounds on $N$, time limits) to derive required asymptotic time and space complexities.
 3. **Pattern**: Identifying recurring algorithmic blueprints (e.g. prefix sums, two pointers, binary search on answer).
 4. **Tool**: Selecting the optimal C++ construct, container, or STL algorithm (e.g. `std::vector`, `std::lower_bound`, `std::priority_queue`).
-5. **Code**: Implementing the solution cleanly with idiomatic modern C++ (C++20/C++23).
+5. **Code**: Implementing the solution cleanly with idiomatic modern C++ (C++17/C++20/C++23).
 6. **Test**: Compiling, verifying with sample cases, and stress testing boundary edge cases.
 7. **Reflect**: Performing post-submission diagnosis to isolate whether any mistake was conceptual, syntactical, or time-related.
 8. **Transfer**: Solving related variations or disguised problems to solidify generalizability.
@@ -20,6 +20,11 @@ Problem ──► Plan ──► Pattern ──► Tool ──► Code ──►
 ---
 
 ## 2. Multi-Dimensional Mastery Model
+
+> [!IMPORTANT]
+> **Provisional M0 Evaluation Notice**:
+> The initial mastery scoring heuristic in M0 (`HeuristicMasteryEvaluator`) is explicitly provisional and exists solely to validate repository architecture, shared contracts, and test pipelines.
+> Production mastery calibration, Bayesian knowledge tracing, and recommendation mechanics will be calibrated during **Milestone M5 (Adaptive Learning)** and evaluated against empirical learner data before becoming authoritative.
 
 A student does not "know" binary search simply because they solved one problem. Mastery is broken down into seven distinct, measurable dimensions:
 

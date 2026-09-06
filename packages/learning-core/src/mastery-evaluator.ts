@@ -9,10 +9,16 @@ export interface MasteryEvaluationInput {
 }
 
 /**
- * Pure domain evaluator for learning mastery dimensions.
- * Avoids any AI/LLM dependencies; relies strictly on deterministic domain heuristics.
+ * PROVISIONAL / HEURISTIC mastery evaluator for Milestone M0.
+ *
+ * NOTE: This evaluator is explicitly provisional and exists solely to validate
+ * architecture, contracts, and test pipelines.
+ *
+ * Production mastery calibration and learning science models will be developed
+ * during Milestone M5 (Adaptive Learning) and must be empirically evaluated against
+ * real learner data before becoming authoritative.
  */
-export class MasteryEvaluator {
+export class HeuristicMasteryEvaluator {
   private static readonly DEFAULT_INITIAL_SCORE = 50;
   private static readonly LEARNING_RATE = 0.15;
 
@@ -56,3 +62,7 @@ export class MasteryEvaluator {
     };
   }
 }
+
+// Backward-compatible alias for existing imports
+export const MasteryEvaluator = HeuristicMasteryEvaluator;
+export type MasteryEvaluator = HeuristicMasteryEvaluator;

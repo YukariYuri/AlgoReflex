@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { MasteryEvaluator } from '../src/mastery-evaluator.js';
+import { MasteryEvaluator, HeuristicMasteryEvaluator } from '../src/mastery-evaluator.js';
 
-describe('MasteryEvaluator', () => {
+describe('HeuristicMasteryEvaluator (Provisional M0 Model)', () => {
+  it('confirms HeuristicMasteryEvaluator equals MasteryEvaluator alias', () => {
+    expect(HeuristicMasteryEvaluator).toBe(MasteryEvaluator);
+  });
   it('increases mastery score on success', () => {
     const updated = MasteryEvaluator.calculateUpdatedScore({
       currentScore: {

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { PrerequisiteGraph, CycleDetectedError } from '../src/prerequisite-graph.js';
+import type { KnowledgeNodeRef } from '@algoreflex/contracts';
 
 describe('PrerequisiteGraph', () => {
   it('correctly constructs DAG and returns topological ordering', () => {
@@ -17,6 +18,35 @@ describe('PrerequisiteGraph', () => {
     expect(order.indexOf('cpp-loops')).toBeLessThan(order.indexOf('cpp-arrays'));
     expect(order.indexOf('cpp-arrays')).toBeLessThan(order.indexOf('prefix-sum'));
     expect(order.indexOf('cpp-syntax')).toBeLessThan(order.indexOf('cpp-functions'));
+  });
+
+  it('supports cross-type prerequisite edges between Concept, Tool, Pattern, and Lesson', () => {
+    const graph = new PrerequisiteGraph();
+
+    const concept: KnowledgeNodeRef = { type: 'CONCEPT', id: 'monotonicity' };
+    const tool: KnowledgeNodeRef = { type: 'TOOL', id: 'std::lower_bound' };
+    const pattern: KnowledgeNodeRef = { type: 'PATTERN', id: 'binary-search-on-answer' };
+    const lesson: KnowledgeNodeRef = { type: 'LESSON', id: 'advanced-binary-search' };
+
+    graph.addTypedEdge(concept, tool);
+    graph.addTypedEdge(tool, pattern);
+    graph.addTypedEdge(pattern, lesson);
+
+    const order = graph.getTopologicalOrder();
+    expect(order.indexOf('CONCEPT:monotonicity')).toBeLessThan(
+      order.indexOf('TOOL:std::lower_bound')
+    );
+    expect(order.indexOf('TOOL:std::lower_bound')).toBeLessThan(
+      order.indexOf('PATTERN:binary-search-on-answer')
+    );
+    expect(order.indexOf('PATTERN:binary-search-on-answer')).toBeLessThan(
+      order.indexOf('LESSON:advanced-binary-search')
+    );
+
+    const path = graph.getPrerequisitePath('LESSON:advanced-binary-search');
+    expect(path).toContain('CONCEPT:monotonicity');
+    expect(path).toContain('TOOL:std::lower_bound');
+    expect(path).toContain('PATTERN:binary-search-on-answer');
   });
 
   it('detects cycles and throws CycleDetectedError immediately', () => {

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { ProblemConstraintSchema } from './constraint.js';
-import { TestCaseSchema } from './test-case.js';
+import { SampleTestCaseSchema, HiddenTestCaseSchema } from './test-case.js';
 
 export const HintLayerSchema = z.enum([
   'PROBLEM_INTERPRETATION',
@@ -46,7 +46,39 @@ export const ProblemVariantSchema = z.object({
 
 export type ProblemVariant = z.infer<typeof ProblemVariantSchema>;
 
-export const ProblemSchema = z.object({
+// ============================================================================
+// Public / Client-Safe Problem Schema
+// Strictly forbids hidden test cases and reference solutions.
+// Safe for web client consumption and API responses.
+// ============================================================================
+
+export const PublicProblemSchema = z
+  .object({
+    id: z.string(),
+    slug: z.string(),
+    title: z.string(),
+    difficulty: z.enum(['BEGINNER', 'EASY', 'MEDIUM', 'HARD', 'ADVANCED', 'NATIONAL']),
+    statement: z.string().min(1),
+    inputFormat: z.string().min(1),
+    outputFormat: z.string().min(1),
+    constraints: ProblemConstraintSchema,
+    sampleCases: z.array(SampleTestCaseSchema).min(1),
+    hints: z.array(HintSchema).default([]),
+    variants: z.array(ProblemVariantSchema).default([]),
+    targetPatternIds: z.array(z.string()).default([]),
+    targetToolIds: z.array(z.string()).default([]),
+    author: z.string().default('AlgoReflex'),
+  })
+  .strict(); // Rejects any extraneous fields (e.g. hiddenTestCases, solutions)
+
+export type PublicProblem = z.infer<typeof PublicProblemSchema>;
+
+// ============================================================================
+// Internal / Server / Judge Problem Schema
+// Authoring and judge verification model containing hidden test cases and solutions.
+// ============================================================================
+
+export const JudgeProblemSchema = z.object({
   id: z.string(),
   slug: z.string(),
   title: z.string(),
@@ -55,8 +87,8 @@ export const ProblemSchema = z.object({
   inputFormat: z.string().min(1),
   outputFormat: z.string().min(1),
   constraints: ProblemConstraintSchema,
-  sampleCases: z.array(TestCaseSchema).min(1),
-  hiddenTestCases: z.array(TestCaseSchema).default([]),
+  sampleCases: z.array(SampleTestCaseSchema).min(1),
+  hiddenTestCases: z.array(HiddenTestCaseSchema).default([]),
   hints: z.array(HintSchema).default([]),
   solutions: z.array(SolutionApproachSchema).default([]),
   variants: z.array(ProblemVariantSchema).default([]),
@@ -65,4 +97,32 @@ export const ProblemSchema = z.object({
   author: z.string().default('AlgoReflex'),
 });
 
-export type Problem = z.infer<typeof ProblemSchema>;
+export type JudgeProblem = z.infer<typeof JudgeProblemSchema>;
+export type ProblemAuthoring = JudgeProblem;
+
+// Default "Problem" alias points to client-safe PublicProblem
+export type Problem = PublicProblem;
+export const ProblemSchema = PublicProblemSchema;
+
+/**
+ * Strips hidden tests and reference solutions from a JudgeProblem,
+ * producing an authenticated, client-safe PublicProblem.
+ */
+export function toPublicProblem(judgeProblem: JudgeProblem): PublicProblem {
+  return PublicProblemSchema.parse({
+    id: judgeProblem.id,
+    slug: judgeProblem.slug,
+    title: judgeProblem.title,
+    difficulty: judgeProblem.difficulty,
+    statement: judgeProblem.statement,
+    inputFormat: judgeProblem.inputFormat,
+    outputFormat: judgeProblem.outputFormat,
+    constraints: judgeProblem.constraints,
+    sampleCases: judgeProblem.sampleCases,
+    hints: judgeProblem.hints,
+    variants: judgeProblem.variants,
+    targetPatternIds: judgeProblem.targetPatternIds,
+    targetToolIds: judgeProblem.targetToolIds,
+    author: judgeProblem.author,
+  });
+}
