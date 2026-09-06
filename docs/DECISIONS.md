@@ -12,6 +12,9 @@
 - [ADR-008: Separation of Public and Judge Contracts by Construction](#adr-008-separation-of-public-and-judge-contracts-by-construction)
 - [ADR-009: Decoupled Compilation and Execution Sandbox Profiles](#adr-009-decoupled-compilation-and-execution-sandbox-profiles)
 - [ADR-010: Centralized C++ Language Standards and Trusted Toolchain Profiles](#adr-010-centralized-c-language-standards-and-trusted-toolchain-profiles)
+- [ADR-011: Structured Non-Leaking Diagnostic Codes for Hidden Test Cases](#adr-011-structured-non-leaking-diagnostic-codes-for-hidden-test-cases)
+- [ADR-012: Authoritative Typed Prerequisite Graph Public API](#adr-012-authoritative-typed-prerequisite-graph-public-api)
+- [ADR-013: Minimal Immutable Runner Rootfs and Host Mount Prohibitions](#adr-013-minimal-immutable-runner-rootfs-and-host-mount-prohibitions)
 
 ---
 
@@ -126,3 +129,36 @@
 - **Consequences**:
   - Immunity to compiler flag injection attacks.
   - Unified vocabulary across runner, submission contracts, and curriculum.
+
+---
+
+### ADR-011: Structured Non-Leaking Diagnostic Codes for Hidden Test Cases
+
+- **Status**: Approved
+- **Context**: Hidden test case public verdicts previously permitted an `errorMessage` string that could inadvertently forward raw judge/runner output, leaking hidden test inputs, expected outputs, sandbox paths, filenames, or judge implementation details.
+- **Decision**: Remove `errorMessage` completely from `PublicHiddenTestCaseVerdictSchema` with `.strict()` schema enforcement. Replace it with a controlled `diagnosticCode` enum (`HIDDEN_WRONG_ANSWER`, `HIDDEN_RUNTIME_ERROR`, `HIDDEN_TIME_LIMIT`, `HIDDEN_MEMORY_LIMIT`, `HIDDEN_OUTPUT_LIMIT`, `HIDDEN_INTERNAL_ERROR`). Sample test cases retain diagnostic strings since sample data is public.
+- **Consequences**:
+  - Hidden test data confidentiality is enforced by construction.
+  - Clients receive clean, structured diagnostic states without information leakage.
+
+---
+
+### ADR-012: Authoritative Typed Prerequisite Graph Public API
+
+- **Status**: Approved
+- **Context**: `PrerequisiteGraph` supported `addTypedEdge()`, but also exposed untyped `addEdge(string, string)` and `addNode(string)` in its public API, allowing downstream code to bypass type-safe `KnowledgeNodeRef` semantics.
+- **Decision**: Refactor `PrerequisiteGraph` so all public mutation and query methods (`addNode`, `addEdge`, `getTopologicalOrder`, `getAvailableNext`, `getPrerequisitePath`) operate strictly on typed `KnowledgeNodeRef` objects. String-based mutation helpers are strictly private/internal.
+- **Consequences**:
+  - Full compile-time and runtime type safety across curriculum relationships (`CONCEPT`, `TOOL`, `PATTERN`, `LESSON`, `MODULE`).
+  - Completely eliminates untyped string edge mutations across the codebase.
+
+---
+
+### ADR-013: Minimal Immutable Runner Rootfs and Host Mount Prohibitions
+
+- **Status**: Approved
+- **Context**: Preliminary documentation described `/rootfs` as a bind mount of host system utilities and libraries. Bind mounting host paths exposes host credentials, configuration, daemon sockets, and arbitrary host binaries to potential container escape or exfiltration attacks.
+- **Decision**: Direct host bind mounts are strictly prohibited. The runner environment must use a minimal, pinned, immutable rootfs image independent of host filesystem contents. Host `/etc`, credentials, application code, Docker sockets, and host library directories are strictly forbidden from being mounted into the untrusted execution sandbox.
+- **Consequences**:
+  - Hermetic and reproducible sandbox environments.
+  - Elimination of host credential and host configuration exfiltration attack vectors.

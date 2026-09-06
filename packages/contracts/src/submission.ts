@@ -36,6 +36,17 @@ export const PublicSampleTestCaseResultSchema = z.object({
 
 export type PublicSampleTestCaseResult = z.infer<typeof PublicSampleTestCaseResultSchema>;
 
+export const HiddenDiagnosticCodeSchema = z.enum([
+  'HIDDEN_WRONG_ANSWER',
+  'HIDDEN_RUNTIME_ERROR',
+  'HIDDEN_TIME_LIMIT',
+  'HIDDEN_MEMORY_LIMIT',
+  'HIDDEN_OUTPUT_LIMIT',
+  'HIDDEN_INTERNAL_ERROR',
+]);
+
+export type HiddenDiagnosticCode = z.infer<typeof HiddenDiagnosticCodeSchema>;
+
 export const PublicHiddenTestCaseVerdictSchema = z
   .object({
     testCaseId: z.string(),
@@ -44,9 +55,9 @@ export const PublicHiddenTestCaseVerdictSchema = z
     status: SubmissionStatusSchema,
     timeExecutionMs: z.number().nonnegative(),
     memoryExecutionKb: z.number().nonnegative(),
-    errorMessage: z.string().optional(),
+    diagnosticCode: HiddenDiagnosticCodeSchema.optional(),
   })
-  .strict(); // Invariant: actualOutput and expectedOutput MUST NOT exist on hidden verdicts
+  .strict(); // Invariant: actualOutput, expectedOutput, and arbitrary errorMessage MUST NOT exist on hidden verdicts
 
 export type PublicHiddenTestCaseVerdict = z.infer<
   typeof PublicHiddenTestCaseVerdictSchema
@@ -126,8 +137,32 @@ export type SubmissionResult = PublicSubmissionResult;
 export type Submission = PublicSubmission;
 
 /**
+ * Maps a test case submission status to a safe client-facing diagnostic code for hidden test cases.
+ */
+export function getHiddenDiagnosticCode(
+  status: SubmissionStatus
+): HiddenDiagnosticCode | undefined {
+  switch (status) {
+    case 'WRONG_ANSWER':
+      return 'HIDDEN_WRONG_ANSWER';
+    case 'RUNTIME_ERROR':
+      return 'HIDDEN_RUNTIME_ERROR';
+    case 'TIME_LIMIT_EXCEEDED':
+      return 'HIDDEN_TIME_LIMIT';
+    case 'MEMORY_LIMIT_EXCEEDED':
+      return 'HIDDEN_MEMORY_LIMIT';
+    case 'OUTPUT_LIMIT_EXCEEDED':
+      return 'HIDDEN_OUTPUT_LIMIT';
+    case 'INTERNAL_ERROR':
+      return 'HIDDEN_INTERNAL_ERROR';
+    default:
+      return undefined;
+  }
+}
+
+/**
  * Sanitizes an internal JudgeSubmissionResult into a safe PublicSubmissionResult.
- * Strips all hidden input and expectedOutput data by construction.
+ * Strips all hidden input, expectedOutput data, and arbitrary judge error messages by construction.
  */
 export function toPublicSubmissionResult(
   judge: JudgeSubmissionResult
@@ -160,7 +195,7 @@ export function toPublicSubmissionResult(
         status: tc.status,
         timeExecutionMs: tc.timeExecutionMs,
         memoryExecutionKb: tc.memoryExecutionKb,
-        errorMessage: tc.errorMessage,
+        diagnosticCode: getHiddenDiagnosticCode(tc.status),
       };
     }),
   };
