@@ -12,11 +12,14 @@
   },
   "scripts": {
     "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
-    "@algoreflex/contracts": "workspace:*"
+    "@algoreflex/contracts": "workspace:*",
+    "fastify": "^5.12.3"
   },
   "devDependencies": {
     "@algoreflex/config": "workspace:*",
