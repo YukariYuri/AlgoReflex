@@ -1,7 +1,7 @@
-import type { KnowledgeNodeRef } from '@algoreflex/contracts';
+import type { KnowledgeNodeRef, KnowledgeNodeType } from '@algoreflex/contracts';
 
 export interface GraphNode<T = unknown> {
-  id: string;
+  ref: KnowledgeNodeRef;
   metadata?: T;
 }
 
@@ -16,72 +16,114 @@ export class CycleDetectedError extends Error {
  * Manages a Directed Acyclic Graph (DAG) of curriculum prerequisites.
  * Authoritative single source of truth for curriculum dependencies.
  *
- * Supports cross-type prerequisite relationships (e.g. CONCEPT -> TOOL, TOOL -> PATTERN).
+ * Operates strictly on typed KnowledgeNodeRef keys (e.g. { type: 'CONCEPT', id: 'monotonicity' }).
+ * Supports cross-type prerequisite relationships (e.g. CONCEPT -> TOOL, TOOL -> PATTERN, PATTERN -> LESSON).
  */
 export class PrerequisiteGraph<T = unknown> {
   private readonly nodes: Map<string, GraphNode<T>> = new Map();
-  // adjacency list: prereqId -> Set of dependent nodeIds
+  // adjacency list: prereqKey -> Set of dependent nodeKeys
   private readonly dependents: Map<string, Set<string>> = new Map();
-  // reverse adjacency: nodeId -> Set of prerequisite nodeIds
+  // reverse adjacency: nodeKey -> Set of prerequisite nodeKeys
   private readonly prerequisites: Map<string, Set<string>> = new Map();
 
   /**
-   * Helper to format a typed KnowledgeNodeRef into a canonical graph key.
+   * Formats a typed KnowledgeNodeRef into a canonical graph key.
+   * e.g. CONCEPT:monotonicity, TOOL:std::lower_bound
    */
   public static toNodeKey(ref: KnowledgeNodeRef): string {
     return `${ref.type}:${ref.id}`;
   }
 
-  public addNode(id: string, metadata?: T): void {
-    if (!this.nodes.has(id)) {
-      this.nodes.set(id, { id, metadata });
-      this.dependents.set(id, new Set());
-      this.prerequisites.set(id, new Set());
+  /**
+   * Parses a canonical graph key back into a typed KnowledgeNodeRef.
+   */
+  public static parseNodeKey(key: string): KnowledgeNodeRef {
+    const colonIdx = key.indexOf(':');
+    if (colonIdx === -1) {
+      throw new Error(`Invalid canonical node key: ${key}`);
+    }
+    return {
+      type: key.slice(0, colonIdx) as KnowledgeNodeType,
+      id: key.slice(colonIdx + 1),
+    };
+  }
+
+  /**
+   * Internal helper to register a node by its canonical key.
+   */
+  private addNodeByKey(key: string, ref: KnowledgeNodeRef, metadata?: T): void {
+    if (!this.nodes.has(key)) {
+      this.nodes.set(key, { ref, metadata });
+      this.dependents.set(key, new Set());
+      this.prerequisites.set(key, new Set());
     }
   }
 
-  public addEdge(prereqId: string, dependentId: string): void {
-    this.addNode(prereqId);
-    this.addNode(dependentId);
-
-    const deps = this.dependents.get(prereqId);
+  /**
+   * Internal helper to register a directed edge by canonical keys with cycle verification.
+   */
+  private addEdgeByKey(requiredKey: string, targetKey: string): void {
+    const deps = this.dependents.get(requiredKey);
     if (deps) {
-      deps.add(dependentId);
+      deps.add(targetKey);
     }
-    const prereqs = this.prerequisites.get(dependentId);
+    const prereqs = this.prerequisites.get(targetKey);
     if (prereqs) {
-      prereqs.add(prereqId);
+      prereqs.add(requiredKey);
     }
 
     // Verify DAG invariant
     if (this.hasCycle()) {
       // rollback
-      deps?.delete(dependentId);
-      prereqs?.delete(prereqId);
-      throw new CycleDetectedError([prereqId, dependentId, prereqId]);
+      deps?.delete(targetKey);
+      prereqs?.delete(requiredKey);
+      throw new CycleDetectedError([requiredKey, targetKey, requiredKey]);
     }
   }
 
   /**
-   * Adds an edge between two typed KnowledgeNodeRefs.
-   * e.g. CONCEPT:monotonicity -> TOOL:lower_bound
+   * Registers a node into the graph using a typed KnowledgeNodeRef.
    */
-  public addTypedEdge(prereq: KnowledgeNodeRef, dependent: KnowledgeNodeRef): void {
-    this.addEdge(
-      PrerequisiteGraph.toNodeKey(prereq),
-      PrerequisiteGraph.toNodeKey(dependent)
-    );
+  public addNode(ref: KnowledgeNodeRef, metadata?: T): void {
+    const key = PrerequisiteGraph.toNodeKey(ref);
+    this.addNodeByKey(key, ref, metadata);
+  }
+
+  /**
+   * Adds a directed prerequisite edge: required -> target.
+   * target requires required to be completed/mastered first.
+   */
+  public addEdge(required: KnowledgeNodeRef, target: KnowledgeNodeRef): void {
+    this.addNode(required);
+    this.addNode(target);
+
+    const requiredKey = PrerequisiteGraph.toNodeKey(required);
+    const targetKey = PrerequisiteGraph.toNodeKey(target);
+
+    this.addEdgeByKey(requiredKey, targetKey);
+  }
+
+  public hasNode(ref: KnowledgeNodeRef): boolean {
+    return this.nodes.has(PrerequisiteGraph.toNodeKey(ref));
+  }
+
+  public getNode(ref: KnowledgeNodeRef): GraphNode<T> | undefined {
+    return this.nodes.get(PrerequisiteGraph.toNodeKey(ref));
+  }
+
+  public getNodeCount(): number {
+    return this.nodes.size;
   }
 
   public hasCycle(): boolean {
     const visited = new Set<string>();
     const inStack = new Set<string>();
 
-    const dfs = (nodeId: string): boolean => {
-      visited.add(nodeId);
-      inStack.add(nodeId);
+    const dfs = (nodeKey: string): boolean => {
+      visited.add(nodeKey);
+      inStack.add(nodeKey);
 
-      const neighbors = this.dependents.get(nodeId) || new Set();
+      const neighbors = this.dependents.get(nodeKey) || new Set();
       for (const neighbor of neighbors) {
         if (!visited.has(neighbor)) {
           if (dfs(neighbor)) return true;
@@ -90,36 +132,39 @@ export class PrerequisiteGraph<T = unknown> {
         }
       }
 
-      inStack.delete(nodeId);
+      inStack.delete(nodeKey);
       return false;
     };
 
-    for (const nodeId of this.nodes.keys()) {
-      if (!visited.has(nodeId)) {
-        if (dfs(nodeId)) return true;
+    for (const nodeKey of this.nodes.keys()) {
+      if (!visited.has(nodeKey)) {
+        if (dfs(nodeKey)) return true;
       }
     }
 
     return false;
   }
 
-  public getTopologicalOrder(): string[] {
+  /**
+   * Returns nodes in topological order as typed KnowledgeNodeRefs.
+   */
+  public getTopologicalOrder(): KnowledgeNodeRef[] {
     const inDegree: Map<string, number> = new Map();
-    for (const nodeId of this.nodes.keys()) {
-      inDegree.set(nodeId, this.prerequisites.get(nodeId)?.size || 0);
+    for (const nodeKey of this.nodes.keys()) {
+      inDegree.set(nodeKey, this.prerequisites.get(nodeKey)?.size || 0);
     }
 
     const queue: string[] = [];
-    for (const [nodeId, deg] of inDegree.entries()) {
+    for (const [nodeKey, deg] of inDegree.entries()) {
       if (deg === 0) {
-        queue.push(nodeId);
+        queue.push(nodeKey);
       }
     }
 
-    const result: string[] = [];
+    const resultKeys: string[] = [];
     while (queue.length > 0) {
       const current = queue.shift()!;
-      result.push(current);
+      resultKeys.push(current);
 
       const neighbors = this.dependents.get(current) || new Set();
       for (const neighbor of neighbors) {
@@ -131,42 +176,63 @@ export class PrerequisiteGraph<T = unknown> {
       }
     }
 
-    if (result.length !== this.nodes.size) {
+    if (resultKeys.length !== this.nodes.size) {
       throw new Error('Graph has cycles or disconnected invalid dependencies');
     }
 
-    return result;
+    return resultKeys.map(key => this.nodes.get(key)!.ref);
   }
 
   /**
-   * Returns nodes whose prerequisites are all satisfied by the given set of mastered nodes,
-   * excluding already mastered nodes.
+   * Returns canonical keys in topological order (convenience helper).
    */
-  public getAvailableNext(masteredIds: Set<string>): string[] {
-    const available: string[] = [];
-    for (const [nodeId, prereqs] of this.prerequisites.entries()) {
-      if (masteredIds.has(nodeId)) {
+  public getTopologicalOrderKeys(): string[] {
+    return this.getTopologicalOrder().map(PrerequisiteGraph.toNodeKey);
+  }
+
+  /**
+   * Returns typed nodes whose prerequisites are all satisfied by the given set of mastered nodes,
+   * excluding already mastered nodes.
+   *
+   * Accepts an iterable of KnowledgeNodeRefs or a Set of canonical keys.
+   */
+  public getAvailableNext(
+    mastered: Iterable<KnowledgeNodeRef> | Set<string>
+  ): KnowledgeNodeRef[] {
+    const masteredKeys = new Set<string>();
+    for (const item of mastered) {
+      if (typeof item === 'string') {
+        masteredKeys.add(item);
+      } else {
+        masteredKeys.add(PrerequisiteGraph.toNodeKey(item));
+      }
+    }
+
+    const available: KnowledgeNodeRef[] = [];
+    for (const [nodeKey, prereqs] of this.prerequisites.entries()) {
+      if (masteredKeys.has(nodeKey)) {
         continue;
       }
-      const allSatisfied = Array.from(prereqs).every(p => masteredIds.has(p));
+      const allSatisfied = Array.from(prereqs).every(p => masteredKeys.has(p));
       if (allSatisfied) {
-        available.push(nodeId);
+        available.push(this.nodes.get(nodeKey)!.ref);
       }
     }
     return available;
   }
 
   /**
-   * Returns all transitive prerequisites for a given target node.
+   * Returns all transitive prerequisites for a given target node as typed KnowledgeNodeRefs.
    */
-  public getPrerequisitePath(targetId: string): string[] {
-    if (!this.nodes.has(targetId)) {
+  public getPrerequisitePath(target: KnowledgeNodeRef): KnowledgeNodeRef[] {
+    const targetKey = PrerequisiteGraph.toNodeKey(target);
+    if (!this.nodes.has(targetKey)) {
       return [];
     }
     const visited = new Set<string>();
 
-    const dfs = (id: string) => {
-      const prereqs = this.prerequisites.get(id) || new Set();
+    const dfs = (key: string) => {
+      const prereqs = this.prerequisites.get(key) || new Set();
       for (const p of prereqs) {
         if (!visited.has(p)) {
           visited.add(p);
@@ -175,11 +241,7 @@ export class PrerequisiteGraph<T = unknown> {
       }
     };
 
-    dfs(targetId);
-    return Array.from(visited);
-  }
-
-  public getNodeCount(): number {
-    return this.nodes.size;
+    dfs(targetKey);
+    return Array.from(visited).map(key => this.nodes.get(key)!.ref);
   }
 }

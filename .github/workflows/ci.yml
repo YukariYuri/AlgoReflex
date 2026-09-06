@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - main
+      - foundation/m0-bootstrap
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   validate:

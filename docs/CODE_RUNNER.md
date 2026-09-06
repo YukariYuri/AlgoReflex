@@ -26,7 +26,7 @@ Submission (Source Code + ToolchainProfile)
        ├── Invokes trusted compiler (e.g. g++-13, clang++-17)
        ├── Fixed, hardcoded trusted flags (no arbitrary user flags)
        ├── Multi-process permitted (PID limit: 16 for cc1plus, as, ld)
-       ├── Mounts: /rootfs (ro), /sandbox/source (rw tmpfs), /sandbox/bin (rw)
+       ├── Mounts: minimal immutable rootfs (ro), /sandbox/source (rw tmpfs), /sandbox/bin (rw)
        └── Strict CPU, RAM, and compiler output limits
        │
        ▼ Produces Executable Artifact in /sandbox/bin
@@ -37,7 +37,7 @@ Submission (Source Code + ToolchainProfile)
        ├── Invokes user binary strictly from /sandbox/bin
        ├── Single process strictly enforced (PID limit: 1 — no fork)
        ├── Network namespace: completely disabled (no outbound access)
-       ├── Mounts: /rootfs (ro), /sandbox/bin (ro/rx), /tmp (tmpfs with noexec)
+       ├── Mounts: minimal immutable rootfs (ro), /sandbox/bin (ro/rx), /tmp (tmpfs with noexec)
        ├── Strict CPU, wall-clock, memory, and stdout/stderr limits
        └── Evaluated against inputs and expected outputs
 ```
@@ -87,14 +87,27 @@ User requests can specify a `toolchainProfile`, but **CANNOT** provide custom co
 
 ---
 
-## 5. Filesystem Execution Model
+## 5. Filesystem Execution Model: Immutable Runner Environment
 
-The container filesystem layout enforces strict execution containment:
+The runner environment must be fully reproducible, strictly isolated, and independent of arbitrary host filesystem contents. It **must never** rely on bind mounting the host operating system's utilities or library directories directly into the sandbox.
 
-- `/rootfs` — Read-only bind mount of host system utilities and libraries.
-- `/sandbox/source` — Ephemeral tmpfs workspace for storing and compiling user source code.
-- `/sandbox/bin` — Controlled executable output directory. The binary is written here during compilation, then made executable, and run exclusively from here during execution.
-- `/tmp` — Ephemeral tmpfs mounted with `noexec` where practical to prevent script execution from temporary folders.
+### Controlled Sandbox Filesystem Layout
+
+- **Minimal Immutable Runner Rootfs (`/`)**: A pinned, minimal container image rootfs containing only the essential runtime libraries (`glibc`, `libstdc++`) and toolchain binaries required for competitive C++ evaluation. Mounted strictly **read-only (`ro`)** across all sandbox phases.
+- **Controlled Writable Compile Workspace (`/sandbox/source`)**: An ephemeral `tmpfs` workspace allocated exclusively during the compilation phase for staging user source code and compiler intermediate files. Size-capped at 128 KB. Never mounted into the execution sandbox.
+- **Controlled Executable Artifact Directory (`/sandbox/bin`)**: Staging directory for compiled binaries. Writable during compilation; statically validated and remounted strictly **read-only and execute-only (`ro, rx`)** during the execution phase. Binaries execute exclusively from this path.
+- **Ephemeral Restricted `/tmp`**: An isolated `tmpfs` mount capped at 16 MB and mounted with strict mount flags: `noexec, nosuid, nodev`. Prevents staging or executing auxiliary scripts or binaries from temporary locations.
+
+### Absolute Prohibition of Host-Sensitive Mounts
+
+To guarantee defense-in-depth against sandbox escape or credential exfiltration, the runner host MUST enforce that the following resources are **never** mounted or accessible within the untrusted execution sandbox:
+
+1. **Host `/etc`**: Host password hashes (`/etc/shadow`), user databases (`/etc/passwd`), network configurations, or host service configurations must never be visible.
+2. **Host Credentials & Secrets**: Cloud provider API keys, SSH keys, deployment credentials, database passwords, and `.env*` configuration files must never be mounted or accessible.
+3. **Host Application Files**: AlgoReflex source code, judge daemon binaries, worker orchestrators, and internal scripts must be completely absent from the sandbox namespace.
+4. **Docker Daemon Socket**: The Docker control socket (`/var/run/docker.sock`) or container runtime API endpoints must never be mapped into any sandbox container.
+5. **Cloud Provider Metadata Endpoints**: Host cloud metadata credentials (e.g. AWS IMDS `169.254.169.254`, GCP metadata server) must be unreachable, enforced via disabled networking and routing policies.
+6. **Arbitrary Host Library Directories**: Never directly bind-mount host `/lib`, `/usr/lib`, `/bin`, or `/sbin`. All system libraries must originate exclusively from the pinned, vetted runner rootfs image.
 
 ---
 
