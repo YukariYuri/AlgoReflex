@@ -15,10 +15,10 @@ AlgoReflex is architected as a clean, modular pnpm monorepo:
 ```text
 AlgoReflex/
 ├── apps/
-│   ├── web/                    # React 19 + TypeScript + Vite web client shell
-│   └── api/                    # Fastify + TypeScript application backend API
+│   ├── web/                    # React 19 + TypeScript + Vite playground client
+│   └── api/                    # Fastify application API and runner gateway
 ├── services/
-│   └── runner/                 # Isolated C++ compiler and execution sandbox boundary
+│   └── runner/                 # Rootless-Docker isolated C++ compiler/execution service
 ├── packages/
 │   ├── contracts/              # Shared Zod schemas, domain models, and status vocabularies
 │   ├── learning-core/          # Pure domain logic: Prerequisite DAG, fallback matrix, mastery
@@ -96,13 +96,34 @@ pnpm lint
 pnpm build
 ```
 
+### C++ Playground Runner (Linux / WSL2)
+
+The browser playground requires its separate secure runner service. It does not
+execute C++ on the API host. Use a Linux host or WSL2 distribution with a
+rootless Docker daemon; ordinary Windows host execution is intentionally not
+supported.
+
+```bash
+docker build -t algoreflex-cpp-runner:1.0.0 services/runner
+export RUNNER_SHARED_TOKEN='use-a-long-local-random-value'
+pnpm --filter @algoreflex/runner dev
+# In a second shell with the same RUNNER_SHARED_TOKEN:
+pnpm --filter @algoreflex/api dev
+pnpm --filter @algoreflex/web dev
+```
+
+See [`docs/CODE_RUNNER.md`](docs/CODE_RUNNER.md) for threat-test setup,
+resource limits, and deployment requirements. M1 implements the documented
+isolation controls and threat suite; it is defense in depth, not an assertion of
+absolute sandbox security.
+
 ---
 
 ## Current Status & Roadmap
 
-- **Current Milestone**: `M0 — Foundation Bootstrap` (In Review)
+- **Current Milestone**: `M1 — C++ Playground & Secure Runner`
 - **Architecture Lead**: ChatGPT
 - **Implementation Agent**: Gemini Antigravity
-- **Next Milestone**: `M1 — C++ Playground & Secure Runner Sandbox`
+- **Next Milestone**: `M2 — Learning Core & Persistence`
 
 See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the complete 8-milestone trajectory and [`tasks/ACTIVE.md`](tasks/ACTIVE.md) for active work items.

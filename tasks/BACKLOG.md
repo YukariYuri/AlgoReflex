@@ -1,12 +1,5 @@
 # Backlog Tasks
 
-## Milestone M1: C++ Playground & Secure Runner Sandbox
-
-- [ ] **M1-RUN-01**: Design Linux container sandbox wrapper (Docker rootless or nsjail) with resource cgroups.
-- [ ] **M1-RUN-02**: Implement C++20 compiler invocation with standard contest flags (`-O2 -Wall -Wextra`).
-- [ ] **M1-RUN-03**: Integrate Monaco code editor in `apps/web` with C++ syntax highlighting.
-- [ ] **M1-RUN-04**: Build test-runner interface for custom sample inputs and outputs.
-
 ## Milestone M2: Learning Core & Persistence
 
 - [ ] **M2-DB-01**: Configure PostgreSQL connection pooling and Drizzle/Prisma schema.

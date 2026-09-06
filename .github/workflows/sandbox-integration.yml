@@ -1,0 +1,46 @@
+name: Sandbox Integration
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sandbox-integration:
+    name: Linux Rootless Docker Threat Suite
+    # This label is deliberately self-hosted: GitHub's standard hosted Docker
+    # daemon is not rootless and must not be presented as equivalent coverage.
+    runs-on: [self-hosted, linux, rootless-docker]
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.3.4
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify Rootless Docker
+        run: docker info --format '{{json .SecurityOptions}}' | grep -qi rootless
+
+      - name: Build Approved Local Runner Image
+        run: docker build --tag algoreflex-cpp-runner:1.0.0 services/runner
+
+      - name: Run Sandbox Threat Suite
+        env:
+          RUN_SANDBOX_INTEGRATION: 'true'
+          RUNNER_IMAGE: algoreflex-cpp-runner:1.0.0
+        run: pnpm --filter @algoreflex/runner test

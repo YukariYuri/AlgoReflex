@@ -119,10 +119,88 @@ To guarantee defense-in-depth against sandbox escape or credential exfiltration,
 
 ---
 
-## 7. Current M0 Status
+## 7. M1 Implementation: Rootless Docker Two-Stage Runner
 
-In Milestone M0:
+M1 replaces the M0 stub with `DockerSandboxRunner` in `services/runner`. The
+Fastify application API calls the runner only through its authenticated internal
+HTTP endpoint (`POST /internal/playground/run`). `apps/api` does not import
+Docker APIs or launch user processes.
 
-- The runner package defines explicit `CompileLimits`, `ExecutionLimits`, and `ToolchainProfile` contracts in `@algoreflex/runner`.
-- The runner implementation (`StubCodeRunner`) returns an explicit `INTERNAL_ERROR` / `NOT_IMPLEMENTED` rejection.
-- Zero untrusted code execution takes place in M0. Containerized isolation is scheduled for Milestone M1.
+For every run, the runner:
+
+1. Verifies it is running on Linux and that a rootless Docker daemon is available.
+2. Creates a fresh named Docker volume for the compiled artifact.
+3. Starts an ephemeral **compile** container from the approved runner image.
+4. Streams source only to the compile container's standard input; it is written
+   inside a bounded `/sandbox/source` tmpfs. The fixed, allowlisted compiler
+   profile writes the artifact to the fresh volume.
+5. Starts an independent ephemeral **execution** container with that volume
+   mounted read-only at `/sandbox/bin`, and streams `stdin` only to its standard
+   input.
+6. Captures bounded stdout/stderr, sanitizes diagnostics, force-removes both
+   container names, and deletes the artifact volume in `finally`.
+
+The runner never builds a shell command from source, stdin, profile names, or
+client input. It invokes the trusted Docker executable with `shell: false` and
+an explicit argument array.
+
+### Enforced Docker Isolation Controls
+
+- Linux and rootless Docker are required; unavailable/unsupported environments
+  return `RUNNER_UNAVAILABLE` and execute no code.
+- No network: `--network none` for both phases.
+- Non-root workload: `--user 10001:10001`.
+- Immutable base: `--read-only`; the approved image contains toolchains and
+  runtime libraries and is never assembled from host bind mounts.
+- No host mounts: the runner uses a new Docker volume plus tmpfs mounts only;
+  it never maps `/etc`, application files, credentials, home directories, or a
+  Docker socket into a sandbox.
+- Narrow writable areas: compile-only `/sandbox/source` tmpfs and `/tmp` tmpfs
+  with `nosuid,nodev,noexec`; execution sees a read-only artifact volume.
+- Privilege reduction: `--cap-drop ALL` and `no-new-privileges:true`, alongside
+  Docker's default seccomp profile.
+- Resource quotas: independent memory, CPU rlimit, wall timeout, output cap,
+  and PID limits (16 for compilation; exactly 1 for execution).
+- Container logs are disabled, preventing user output from accumulating in the
+  Docker log store.
+
+This is defense in depth, not a claim of absolute security. M1 implements the
+defined isolation controls and has an explicitly classified threat-test suite;
+continued hardening is required in later milestones.
+
+### Local Linux / WSL2 Setup
+
+The secure runner is supported only on a Linux host or a WSL2 Linux distribution
+with a **rootless Docker daemon**. An arbitrary Windows process sandbox is not
+equivalent and is intentionally rejected.
+
+```bash
+# From a Linux/WSL2 shell at the repository root
+docker build -t algoreflex-cpp-runner:1.0.0 services/runner
+export RUNNER_SHARED_TOKEN='use-a-long-local-random-value'
+export RUNNER_IMAGE='algoreflex-cpp-runner:1.0.0'
+pnpm --filter @algoreflex/runner dev
+# In another shell with the same RUNNER_SHARED_TOKEN
+pnpm --filter @algoreflex/api dev
+```
+
+Release deployment must configure `RUNNER_IMAGE` to an approved registry image
+digest, rather than a mutable tag. The local development tag above exists only
+to enable a reproducible developer build before publishing that digest.
+
+### Sandbox Integration Suite
+
+The suite at `services/runner/test/sandbox.integration.test.ts` is opt-in by
+design because it needs Linux namespaces, cgroups, and rootless Docker:
+
+```bash
+RUN_SANDBOX_INTEGRATION=true \
+RUNNER_IMAGE=algoreflex-cpp-runner:1.0.0 \
+pnpm --filter @algoreflex/runner test
+```
+
+It covers normal compilation/stdin, compile diagnostics, runtime failure,
+timeout, memory pressure, output flood, process growth, disabled networking,
+and inaccessible host `/etc/passwd`. Unit tests do not prove these kernel-level
+controls; they validate the deterministic command construction, status mapping,
+sanitization, and teardown behavior.
