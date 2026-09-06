@@ -1,0 +1,20 @@
+{
+  "name": "@algoreflex/learning-core",
+  "version": "0.1.0",
+  "description": "Pure domain learning models and curriculum algorithms for AlgoReflex",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@algoreflex/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@algoreflex/config": "workspace:*",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.7"
+  }
+}
