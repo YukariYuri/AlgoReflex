@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "skipLibCheck": true,
+    "strict": true
+  },
+  "references": [
+    { "path": "./packages/contracts" },
+    { "path": "./packages/problem-schema" },
+    { "path": "./packages/learning-core" },
+    { "path": "./packages/ui" },
+    { "path": "./services/runner" },
+    { "path": "./apps/api" },
+    { "path": "./apps/web" }
+  ],
+  "files": []
+}
