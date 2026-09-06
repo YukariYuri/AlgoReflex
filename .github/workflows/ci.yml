@@ -35,11 +35,11 @@ jobs:
       - name: Lint Codebase
         run: pnpm lint
 
+      - name: Build Packages and Applications
+        run: pnpm build
+
       - name: Check TypeScript Types
         run: pnpm typecheck
 
       - name: Run Test Suites
         run: pnpm test
-
-      - name: Build Packages and Applications
-        run: pnpm build
