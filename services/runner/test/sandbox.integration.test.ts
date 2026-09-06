@@ -67,12 +67,11 @@ describe.skipIf(!integrationEnabled)(
 
     it('prevents process growth, reachable networking, and host filesystem reads', async () => {
       const processAbuse = await runner.run({
-        sourceCode:
-          '#include <unistd.h>\nint main() { while (fork() >= 0) {} return 0; }',
+        sourceCode: '#include <unistd.h>\nint main() { return fork() == -1 ? 0 : 1; }',
         stdin: '',
         toolchainProfile: 'GNU_CPP20',
       });
-      expect(processAbuse.status).not.toBe('ACCEPTED');
+      expect(processAbuse).toMatchObject({ status: 'ACCEPTED', exitCode: 0 });
 
       const network = await runner.run({
         sourceCode: `#include <arpa/inet.h>
